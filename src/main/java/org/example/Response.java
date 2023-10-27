@@ -1,2 +1,4 @@
-package org.example;public class Response {
+package org.example;
+
+public class Response {
 }
