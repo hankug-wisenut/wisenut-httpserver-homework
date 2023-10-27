@@ -51,8 +51,9 @@ public class HttpProtocalImp implements HttpProtocal {
 
         try{
             Request request = HttpProtocalImp.requestParser(in);
+            controller.doControl(request);
         }catch(Exception e){
-
+            e.printStackTrace();
         }
 
     }

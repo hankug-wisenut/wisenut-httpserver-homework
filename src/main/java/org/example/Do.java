@@ -17,6 +17,11 @@ public class Do implements Runnable{
 
     public void run(){
         System.out.println("client : "+socket.getRemoteSocketAddress().toString() + " start do");
+        try{
+            protocal.run(socket.getInputStream(),controller);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
 
     }
 }

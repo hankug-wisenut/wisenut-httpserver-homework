@@ -4,8 +4,7 @@ package org.example;
 // then press Enter. You can now see whitespace characters in your code.
 public class Main {
     public static void main(String[] args) throws Exception{
-        App app = new App(new HttpProtocalImp(),new Controller() {
-        });
+        App app = new App(new HttpProtocalImp(),new ControllerImp());
         app.loop();
     }
 }
