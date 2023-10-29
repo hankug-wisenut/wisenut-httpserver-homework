@@ -1,7 +1,7 @@
 package org.example;
 
 public enum Method {
-    Get("get"),Post("post"),Head("head");
+    Get("GET"),Post("POST"),Head("HEAD");
     String value;
 
     Method(String value){

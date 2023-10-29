@@ -1,79 +1,99 @@
 package org.example;
 
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.net.InetSocketAddress;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import static java.lang.System.exit;
 
 public class App {
+   private ServerSocketChannel serverSocket;
+   private InetAddress host;
+   private int port;
 
-   private ExecutorService executor;
-   private ServerSocket serverSocket;
-   private InetAddress address;
-
+   private InetSocketAddress address;
    private HttpProtocal protocal;
    private Controller controller;
 
-   private Map<String, Socket> socketMap;
+   private Selector selector;
+   private LinkedBlockingQueue<Session> sessions;
 
-    int port;
+   private Thread poller;
 
     public App(HttpProtocal protocal,Controller controller) throws Exception{
-        this.address = InetAddress.getLocalHost();
+        this.host = InetAddress.getLocalHost();
         this.port = 8080;
+        this.address = new InetSocketAddress(host,port);
         this.protocal = protocal;
         this.controller = controller;
-
-        System.out.println("server : "+address.toString() + " : "+port +" start");
-
-        this.serverSocket = new ServerSocket(port,100,address);
-
         init();
     }
 
     public App(String host,int port, HttpProtocal protocal,Controller controller) throws Exception{
-        this.address = InetAddress.getByName(host);
+        this.host = InetAddress.getByName(host);
         this.port = port;
+        this.address = new InetSocketAddress(host,port);
         this.protocal = protocal;
         this.controller = controller;
-
-        System.out.println("server : "+address.toString() + " : "+port +" start");
-
-        this.serverSocket = new ServerSocket(port,100,address);
-
         init();
     }
 
     private void init(){
-        int cores = Runtime.getRuntime().availableProcessors();
-        this.executor =  Executors.newFixedThreadPool(2*cores);
-        this.socketMap = new HashMap<>();
+        try{
+            this.sessions = new LinkedBlockingQueue<>();
+            this.selector = Selector.open();
+            this.serverSocket = ServerSocketChannel.open();
+            this.serverSocket.bind(this.address);
+            this.serverSocket.configureBlocking(false);
+
+            System.out.println("server : "+address.toString() +" start");
+
+            this.serverSocket.register(this.selector, SelectionKey.OP_ACCEPT);
+            this.poller = new Thread(new Poller(this.sessions));
+        }catch(Exception e){
+            e.printStackTrace();
+            exit(-1);
+        }
     }
 
     private void close(){
-        executor.shutdown();
-        socketMap.values().stream().forEach(sock -> {
-                try{
-                    sock.close();
-                }catch(Exception e) {
-                    e.printStackTrace();
-                }
+        try{
+            serverSocket.close();
+            selector.close();
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void handler(SelectionKey key) throws Exception{
+        if(key.isAcceptable()){
+            ServerSocketChannel server = (ServerSocketChannel) key.channel();
+            SocketChannel client = server.accept();
+            if(client != null){
+                client.configureBlocking(false);
+                this.sessions.put(new Session(client,protocal,controller));
+                System.out.println("client : "+client.getRemoteAddress().toString() +" accepted!");
             }
-        );
+
+        }
     }
 
     public void loop(){
 
         try{
+            poller.start();
 
             while(true){
-                Socket socket = this.serverSocket.accept();
-                System.out.println("client : "+socket.getRemoteSocketAddress().toString() + " accept");
-                socketMap.put(socket.getRemoteSocketAddress().toString(),socket);
-                this.executor.execute(new Do(socket,protocal,controller));
+                selector.select();
+                Set<SelectionKey> keys = selector.selectedKeys();
+                for(SelectionKey key : keys){
+                    handler(key);
+                }
             }
 
         }catch(Exception e){
@@ -81,9 +101,10 @@ public class App {
         }finally {
             close();
         }
-
-
     }
 
+    public synchronized void stop(){
+        close();
+    }
 
 }
